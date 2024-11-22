@@ -1,31 +1,41 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import mysql from 'mysql2/promise.js';
+import mysql from 'mysql2/promise';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-const db = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+// Function to create a new database connection
+const getDatabaseConnection = async () => {
+    try {
+        const connection = await mysql.createConnection({
+            host: process.env.DB_HOST,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASS,
+            database: process.env.DB_NAME,
+        });
+        return connection;
+    } catch (error) {
+        console.error("Database connection failed:", error);
+        throw error;
+    }
+};
 
-
+// Endpoint to add a new school
 app.post('/addSchool', async (req, res) => {
     const { name, address, latitude, longitude } = req.body;
 
-    
     if (!name || !address || latitude === undefined || longitude === undefined) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
     try {
+        const db = await getDatabaseConnection(); // Get a new connection
         const query = 'INSERT INTO schools (name, address, latitude, longitude) VALUES (?, ?, ?, ?)';
         const [result] = await db.execute(query, [name, address, latitude, longitude]);
+        await db.end(); // Close the connection
 
         res.status(201).json({ message: 'School added successfully', schoolId: result.insertId });
     } catch (error) {
@@ -34,6 +44,7 @@ app.post('/addSchool', async (req, res) => {
     }
 });
 
+// Endpoint to list schools sorted by proximity
 app.get('/listSchools', async (req, res) => {
     const { latitude, longitude } = req.query;
 
@@ -42,12 +53,13 @@ app.get('/listSchools', async (req, res) => {
     }
 
     try {
+        const db = await getDatabaseConnection(); // Get a new connection
         const query = 'SELECT * FROM schools';
         const [schools] = await db.execute(query);
-
+        await db.end(); // Close the connection
 
         const calculateDistance = (lat1, lon1, lat2, lon2) => {
-            const R = 6371; 
+            const R = 6371; // Radius of the Earth in km
             const dLat = ((lat2 - lat1) * Math.PI) / 180;
             const dLon = ((lon2 - lon1) * Math.PI) / 180;
             const a =
@@ -60,7 +72,6 @@ app.get('/listSchools', async (req, res) => {
             return R * c;
         };
 
-        
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
 
@@ -78,9 +89,8 @@ app.get('/listSchools', async (req, res) => {
     }
 });
 
-
+// Start the server
 const PORT = process.env.PORT || 8888;
-
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import mysql from 'mysql2/promise';
+import mysql from 'mysql2/promise.js';
 
 dotenv.config();
 
